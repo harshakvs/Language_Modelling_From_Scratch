@@ -299,3 +299,5 @@ Why it matters for LLMs:
 - **Moving data between the two is slow.** CPU RAM to GPU goes over PCIe at ~32–64 GB/s, which is far slower than VRAM's own bandwidth.
 - You'll also hear about **SRAM**, the tiny but extremely fast memory on the GPU chip itself. It's tens of MB, at ~20+ TB/s. The memory hierarchy goes **SRAM (tiny, fastest) → HBM/VRAM → CPU DRAM (big, slow)**. Much of GPU optimization, like FlashAttention, is about keeping data in SRAM and making fewer trips to HBM.
 
+Motivation for einops:
+Einops is a library for manipulating tensors where dimensions are named
