@@ -559,3 +559,12 @@ If store every sqrt(L) layers, then activation memory is O(sqrt(L)) and O(L) rec
 ![alt text](image-2.png)
 
 
+ARCHITECTURES.
+
+So many forms of optimizers, activation functions and input types.
+What do we choose?
+How do we choose?
+When do we choose?
+
+Tons of architectures.
+
