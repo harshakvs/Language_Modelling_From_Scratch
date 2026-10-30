@@ -301,3 +301,261 @@ Why it matters for LLMs:
 
 Motivation for einops:
 Einops is a library for manipulating tensors where dimensions are named
+
+avoids transpose and complications
+matrix operations can be easier adn the code can be modular
+easier to write without really worrying about the result
+
+sum and rearrage
+![](image-1.png)
+
+FLOP is floating point operation like addition or multiplication
+
+FLOPs vs FLOPS
+
+Floating point operations (measure the computation done)
+Floating point operations per second for the hardware
+
+
+Ex
+Training GPT 3 took 3.14e23 FLOPs
+
+H100 has a peak perfromance of 1979 teraFLOP/s with sparsity
+
+8 H100s for two weeks
+total_flops = 8*(60*60*24*7)*h100flop_per_sec
+
+
+Elementwise ops on m x n matric requires O(mn) FLOPs
+
+Interpretation:
+B is number of data points
+(D K) is the number of parameters
+
+FLOPs for a forward pass is 2 (#token)(#parameters)
+
+Model FLOPs utilization(MFU)
+
+Defination is actual FLOP/s/ promised FLOP/s (ignore communication/overhead)
+
+usually mfu>= 0.5 is quite good and will be higher if matmuls dominate
+
+usually if its around 0.1 theres something we need to fix
+
+Summary:
+- Matrix multiplications dominate ( 2 m n p) FLOPs
+- FLOP/s depends on hardware (B200>>H100) and data type (bflot16>> float32)
+-Model FLOPs utilization (MFU): (actual FLOP/s)/ (promised FLOP/s)
+
+Arithmetic Intensity
+
+What do we do to compute?
+Send inputs from memory to accelerator, do computation and send outputs from accelerator to memory
+
+now for example lets assume we have a matrix
+n =1024*1024
+x = torch.ones(n, dtype=torch.bfloat16)
+y = torch.relu(x)
+
+Rectified linear unit is what max(0,x)
+
+now we know float32 is 4 bytes that would make bfloat16 2 bytes
+
+now we know we need to move from memory to accelerator adn back
+
+so bytes = 2*n + 2*n
+flops = n coz in relu i just compare with 0 so n comparisons
+
+communication_time = bytes / h100_bytes_per_sec (moving data from gpu memory hbm to registers to do the actual ops)
+computation_time = flops/ h100_flop_per_sec ( actual ops)
+
+so usually in gpu laptops
+data hops from DRAM(Memory) to HBM to SM's (registers or on chip SRAM) and the computed
+
+Assume we can overlap communication and computation perfectly
+total_time = max( communication_time, computation_time)
+
+So what is the bottlenecl if communication time is more then memory and if the computation time is more then its compute
+
+in case of jetsons 
+
+
+**No. The steps in your notes still happen on a Jetson.** Unified memory removes a different copy than the one your calculation is counting.
+
+### The transfer in your notes isn't CPU RAM → GPU
+
+In that H100 example, `x` already lives on the GPU, in its own memory (HBM). The `2n + 2n` bytes are:
+
+```
+GPU memory (HBM, off the compute die)  →  SMs (registers / on-chip SRAM)  →  compute  →  back to HBM
+```
+
+The compute units can only work on data in their registers. Everything else, even the GPU's own memory, sits physically apart from the compute units and has to be streamed in over a bus with limited bandwidth.
+
+### What unified memory actually removes
+
+A typical desktop or server setup has **two** hops:
+
+```
+CPU RAM  --(PCIe, ~32-64 GB/s)-->  GPU HBM  --(~3.35 TB/s on H100)-->  SMs
+```
+
+On a Jetson (Nano, Orin, etc.) the CPU and GPU sit on one SoC and share one pool of LPDDR DRAM:
+
+```
+Shared DRAM  --(~25.6 GB/s on the Nano)-->  GPU SMs
+```
+
+- **Avoided:** the CPU→GPU copy (`x.to("cuda")` over PCIe). The CPU and GPU can point at the same physical bytes.
+- **Not avoided:** DRAM → compute units → DRAM. That is exactly the `bytes = 4n` in your notes.
+
+### Is the memory "on the same chip"?
+
+Only the CPU and GPU are. The DRAM is separate chips on the Jetson module, next to the SoC but not inside it. "Unified" means they share one address space and one physical memory. It doesn't mean the memory is on the compute die.
+
+### Your ReLU example on a Jetson Nano
+
+n = 1M, so bytes = 4 MB:
+
+| | Memory time | Compute time |
+|---|---|---|
+| H100 (~3.35 TB/s) | ~1.2 µs | negligible |
+| Jetson Nano (~25.6 GB/s, ~0.5 TFLOPS fp16) | **~160 µs** | ~2 µs |
+
+The calculation works the same way; you just plug in the Jetson's bandwidth and FLOP numbers. ReLU is even more memory-bound on the Jetson, because its memory bandwidth is very low compared to its compute. Small devices often have a worse ratio of bandwidth to compute.
+
+One note on the example: the original Nano (Maxwell GPU) doesn't support bf16 natively, so you'd use fp16 there. That's still 2 bytes, so the numbers don't change.
+
+**For your notes:** unified memory removes the host↔device copy, but not the memory↔compute traffic. Roofline / arithmetic intensity analysis applies to every accelerator.
+
+
+Accelerator intensity is how much work can the accelerator do per byte transferred?
+is how muhc useful work we can do per byte for h100 its aorund 295
+Every byte we can do 295 FLOPs
+
+Arithmetic intensity is how much actual work per byte for this workload?
+arithmetic_intensity = flops/bytes
+
+another way to put in
+
+What is the bottleneck?
+    
+Memory-bound: arithmetic intensity < accelerator intensity
+    
+Compute-bound: arithmetic intensity > accelerator intensity
+in general we will find us memory bound
+
+
+ex for gelu
+
+n = 1024
+x = torch.ones(n, dtype = torch.bflot16)
+y = F.gelu(x)
+
+bytes = (2*n)+ (2*n)
+flops = 20*n approimated ops for gelu 
+
+arithmaetic intensity is 5 and 
+gelu does more work than relu per byte moved so it has higher arithmetic intensity
+
+same with dot product memory bound 
+
+now matmuls
+
+n = 1024
+x = torch.ones(n, n, dtype=torch.bfloat16, device=cuda_if_available())
+w = torch.ones(n, n, dtype=torch.bfloat16, device=cuda_if_available())
+y = x @ w
+bytes = (2 * n * n) + (2 * n * n) + (2 * n * n)  # Read x, read w, write y
+flops = n * n * (2 * n - 1)  # n^2 dot products
+arithmetic_intensity = flops / bytes  # ~n/3 
+h100_accelerator_intensity = h100_flop_per_sec / h100_bytes_per_sec  
+assert arithmetic_intensity > h100_accelerator_intensity
+Finally, compute-bound!
+As long as we have large matrices, we're compute-bound (saturating the accelerator).
+Training Transformers involves big matrix multiplications.
+Matrix-vector product is what happens during inference, which is why inference is memory-bound.
+
+Gradients
+The loss is a single number. The gradient answers this question for each weight:
+
+"If I nudge this weight up slightly, how much does the loss change?"
+The gradient doesn't adjust the weights by itself. It's the direction and size of the error signal, and the optimizer turns it into the actual adjustment:
+forward   → predict with current weights
+loss      → how wrong (never exactly 0 in practice)
+backward  → gradients: which direction to move each weight, and how strongly
+step      → optimizer updates the weights using the gradients
+discard   → gradients thrown away, recomputed next step
+repeat
+
+
+How much compute now does gradients take?
+
+Foward pass and backward pass flops 
+
+forward is 2 * B * D * D
+B*D is input
+D*D is weights
+
+backward pass
+
+2 * B * D * D + 2 * B * D * D
+
+h1.grad = dloss/dh1
+w2.grad = dloss/dw2
+
+A good rule of thumb: if the optimizer updates it, it's a parameter. If you set it by hand, it's a hyperparameter. If it's recomputed on every forward pass, it's an activation.
+
+Memory
+    num_parameters = D * D * L
+    parameter_memory = 2 * num_parameters  # (2 bytes for bf16) 
+    gradient_memory = 2 * num_parameters  # (2 bytes for bf16) 
+    optimizer_state_memory = 4 * num_parameters  # (4 bytes for fp32) 
+    activation_memory = 2 * (B * D * L)  # (2 bytes for bf16) 
+    It is customary to use fp32 for stability (accumulating averages over powers over many steps).
+    Optimizer state memory:
+    
+AdaGrad: 4 bytes/parameter for storing second moments
+    
+Adam: 8 bytes/parameter for storing first and second moments
+    # Putting it all together
+    total_memory = parameter_memory + activation_memory + gradient_memory + optimizer_state_memory  
+    Compute (for one training step)
+    num_parameters = D * D * L
+    flops = 6 * B * num_parameters  
+
+
+Gradient accumulation:
+    
+Compute gradient on micro batches
+    
+Accumulate the gradients (don't zero it out)
+    
+Every batch_size / micro_batch_size steps, update the parameters and zero out the gradients
+
+For training, we need to store the activations of all layers
+For inference, we don't compute gradients, so we only need to store the current layer's activations.
+
+Activation checkpointing = gradient checkpointing = rematerialization
+    Key idea:
+    
+Forward pass: keep only activations at subset of layers
+    
+Backward pass: recompute the missing activations from the last checkpoint
+    Philosophy: tradeoff memory for compute
+
+  Can we reduce this even more, especially for deep networks (large L)?
+    # Store all layers:   | h1 h2 h3 h4 h5 h6 h7 h8 h9 |
+    # Store no layers:    |                            |
+    # Store some layers:  |    h3       h6          h9 |
+    How frequently to checkpoint?
+    
+If store each layer's activations, then activation memory is O(L) and no recomputation.
+    
+If store no activations, then activation memory is O(1) and compute is O(L^2) (recompute from the start for each layer).
+    
+If store every sqrt(L) layers, then activation memory is O(sqrt(L)) and O(L) recomputation.
+
+![alt text](image-2.png)
+
+

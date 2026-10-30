@@ -1,0 +1,384 @@
+<title>Training Loop Poster</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a desk poster on engineering-pad paper. One loop diagram anchors the page;
+   five small panels around it. Three colors carry meaning everywhere:
+   blue = forward, orange = backward / gradient, aqua = update / optimizer. */
+:root {
+  --paper: #f5f7fa;
+  --card: #ffffff;
+  --ink: #12161c;
+  --muted: #5a6272;
+  --line: #dde2ea;
+  --grid: #e9edf3;
+  --fwd: #2a78d6;
+  --bwd: #eb6834;
+  --upd: #1baf7a;
+  --bar: #3b4350;
+  --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #111419; --card: #191d24; --ink: #eceef2; --muted: #a2a9b6;
+    --line: #2d333d; --grid: #232830; --fwd: #3987e5; --bwd: #d95926; --upd: #199e70;
+    --bar: #c3c9d4; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #111419; --card: #191d24; --ink: #eceef2; --muted: #a2a9b6;
+  --line: #2d333d; --grid: #232830; --fwd: #3987e5; --bwd: #d95926; --upd: #199e70;
+  --bar: #c3c9d4; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--paper);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: var(--ink);
+  font-family: var(--display);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.wrap {
+  max-width: 1240px; margin: 0 auto;
+  padding-block: 28px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 16px;
+}
+header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 24px; }
+h1 { margin: 0; font-size: clamp(26px, 4vw, 38px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; text-wrap: balance; }
+.sub { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+.key { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 8px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); font-size: 12.5px; font-weight: 500; }
+.chip i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; }
+.panel { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.panel h2 { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.panel .lead { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.3; text-wrap: balance; }
+.panel p { margin: 0; }
+.note { color: var(--muted); font-size: 12.5px; }
+code, .mono { font-family: var(--mono); font-size: 12.5px; }
+.s-loop { grid-column: span 7; }
+.s-who { grid-column: span 5; }
+.s-ex, .s-gd, .s-act { grid-column: span 4; }
+.s-mem { grid-column: span 12; }
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+svg text { font-family: var(--display); }
+svg .m { font-family: var(--mono); }
+
+/* loop recap */
+.recap { display: grid; gap: 4px; padding: 12px 14px; background: var(--paper); border-radius: 8px; font-family: var(--mono); font-size: 13px; }
+.recap div { display: grid; grid-template-columns: 9ch minmax(0, 1fr); gap: 4px 10px; }
+.recap div span::before { content: "→ "; color: var(--muted); }
+.recap div:last-child span::before { content: ""; }
+.recap b { font-weight: 500; }
+
+/* who's who */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); padding: 0 6px 6px 0; border-bottom: 1px solid var(--line); }
+th.c, td.c { text-align: center; width: 64px; }
+td { padding: 7px 6px 7px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td b { font-weight: 700; }
+td .note { display: block; font-size: 12px; }
+.dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--muted); vertical-align: -1px; }
+.dot.on { background: var(--upd); border-color: var(--upd); }
+.rule { padding: 10px 12px; border-radius: 8px; background: var(--paper); font-size: 13px; }
+
+/* worked example */
+.chain { display: grid; gap: 6px; }
+.step { display: grid; grid-template-columns: 82px minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 6px 0 6px 10px; border-left: 3px solid var(--line); }
+.step .lbl { font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.step .val { font-family: var(--mono); font-size: 13px; overflow-wrap: anywhere; }
+.step .val b { font-weight: 500; }
+.step.f { border-color: var(--fwd); }
+.step.b { border-color: var(--bwd); }
+.step.u { border-color: var(--upd); }
+
+/* activations */
+.acts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.act { border: 1px solid var(--line); border-radius: 8px; padding: 8px; display: grid; gap: 2px; }
+.act .nm { font-weight: 700; font-size: 13px; }
+.act .nm code { font-weight: 400; color: var(--muted); font-size: 11.5px; margin-left: 4px; }
+.act .use { font-size: 11.5px; color: var(--muted); }
+
+/* memory */
+.mem { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 24px; align-items: start; }
+.math { display: grid; gap: 4px; font-family: var(--mono); font-size: 13px; padding: 10px 12px; background: var(--paper); border-radius: 8px; }
+.path { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12.5px; }
+.path span.box { padding: 5px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); font-weight: 500; }
+.path span.box.x { text-decoration: line-through; color: var(--muted); }
+.path .arr { color: var(--muted); }
+footer { color: var(--muted); font-size: 12px; text-align: right; }
+
+@media (max-width: 980px) {
+  .s-loop, .s-who { grid-column: span 12; }
+  .s-ex, .s-gd, .s-act { grid-column: span 6; }
+  .s-act { grid-column: span 12; }
+  .mem { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .s-ex, .s-gd, .s-act { grid-column: span 12; }
+  .acts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media print {
+  @page { size: A4 landscape; margin: 8mm; }
+  body { background: #fff; font-size: 11px; }
+  .wrap { padding: 0; gap: 8px; max-width: none; }
+  .grid { gap: 8px; }
+  .panel { padding: 10px 12px; gap: 6px; break-inside: avoid; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>How a model learns, in one loop</h1>
+      <p class="sub">Forward, loss, backward, step, repeat. The weights are what you keep.</p>
+    </div>
+    <div class="key" aria-label="Color key">
+      <span class="chip"><i style="background:var(--fwd)"></i>Forward: make a prediction</span>
+      <span class="chip"><i style="background:var(--bwd)"></i>Backward: gradients</span>
+      <span class="chip"><i style="background:var(--upd)"></i>Update: optimizer</span>
+    </div>
+  </header>
+
+  <div class="grid">
+    <section class="panel s-loop">
+      <h2>The training loop</h2>
+      <p class="lead">Every step: predict, measure the error, assign blame, nudge the weights, forget the gradients.</p>
+      <svg id="loop" viewBox="0 0 560 360" role="img" aria-label="Training loop: forward, loss, backward, step, zero grad, then repeat"></svg>
+      <div class="recap">
+        <div><b style="color:var(--fwd)">forward</b><span>predict with current weights</span></div>
+        <div><b>loss</b><span>how wrong (never exactly 0 in practice)</span></div>
+        <div><b style="color:var(--bwd)">backward</b><span>gradients: which direction to move each weight, and how strongly</span></div>
+        <div><b style="color:var(--upd)">step</b><span>optimizer updates the weights using the gradients</span></div>
+        <div><b style="color:var(--muted)">discard</b><span>gradients thrown away, recomputed next step</span></div>
+        <div><b>repeat</b><span></span></div>
+      </div>
+    </section>
+
+    <section class="panel s-who">
+      <h2>Who's who</h2>
+      <p class="lead">Only parameters are learned and kept. Everything else is temporary.</p>
+      <table>
+        <thead><tr><th>Thing</th><th class="c">Learned</th><th class="c">Kept</th></tr></thead>
+        <tbody>
+          <tr><td><b>Parameters</b> ("weights")<span class="note">W, biases, embeddings, norm gains</span></td><td class="c"><span class="dot on" title="yes"></span></td><td class="c"><span class="dot on" title="yes"></span></td></tr>
+          <tr><td><b>Activations</b><span class="note">h1 = relu(x @ W1): one layer's output, the next layer's input. Held in memory until backward(), then freed</span></td><td class="c"><span class="dot" title="no"></span></td><td class="c"><span class="dot" title="no"></span></td></tr>
+          <tr><td><b>Gradients</b><span class="note">w.grad = ∂loss/∂w, recomputed every step</span></td><td class="c"><span class="dot" title="no"></span></td><td class="c"><span class="dot" title="no"></span></td></tr>
+          <tr><td><b>Loss</b><span class="note">one number per step: how wrong</span></td><td class="c"><span class="dot" title="no"></span></td><td class="c"><span class="dot" title="no"></span></td></tr>
+          <tr><td><b>Inputs</b><span class="note">x, the data</span></td><td class="c"><span class="dot" title="no"></span></td><td class="c"><span class="dot" title="no"></span></td></tr>
+          <tr><td><b>Hyperparameters</b><span class="note">learning rate, layers, batch size: you set them</span></td><td class="c"><span class="dot" title="no"></span></td><td class="c"><span class="dot" title="as config"></span></td></tr>
+        </tbody>
+      </table>
+      <p class="rule"><b>Rule of thumb:</b> the optimizer updates it → parameter. You set it → hyperparameter. Recomputed each forward pass → activation.<br><b>Parameters</b> are what each layer <i>is</i>. <b>Activations</b> are what <i>flows through</i> the layers.</p>
+    </section>
+
+    <section class="panel s-ex">
+      <h2>Worked by hand</h2>
+      <p class="lead">x = [1, 2, 3], w = [1, 1, 1], target = 5</p>
+      <div class="chain">
+        <div class="step f"><span class="lbl">Predict</span><span class="val">x @ w = <b>6</b></span></div>
+        <div class="step"><span class="lbl">Loss</span><span class="val">½ (6 − 5)² = <b>0.5</b></span></div>
+        <div class="step b"><span class="lbl">Gradient</span><span class="val">(6 − 5) · x = <b>[1, 2, 3]</b></span></div>
+        <div class="step u"><span class="lbl">Step</span><span class="val">w − 0.1 · grad = <b>[0.9, 0.8, 0.7]</b></span></div>
+        <div class="step f"><span class="lbl">Predict</span><span class="val">x @ w = <b>4.6</b> (overshot 5; lr is big)</span></div>
+      </div>
+      <p class="note">The ½ cancels the 2 from the square. w3 gets the biggest gradient because it multiplies the biggest input. The lecture's "y" is this loss.</p>
+    </section>
+
+    <section class="panel s-gd">
+      <h2>Gradient descent</h2>
+      <p class="lead">The gradient points uphill. The optimizer steps the other way.</p>
+      <svg id="gd" viewBox="0 0 320 210" role="img" aria-label="Loss curve with steps moving downhill and shrinking near the minimum"></svg>
+      <p class="mono" style="text-align:center">w ← w − lr × grad</p>
+      <p class="note">Steps shrink near the bottom because the gradient shrinks with the error. Ascent (+ lr × grad) maximizes something instead, like reward in RL.</p>
+    </section>
+
+    <section class="panel s-act">
+      <h2>Activation functions</h2>
+      <p class="lead">Without them, x @ W1 @ W2 = x @ W. Stacked layers collapse into one.</p>
+      <div class="path" aria-label="Activations flow from layer to layer">
+        <span class="box">x</span><span class="arr">→ layer 1 →</span><span class="box" style="border-color:var(--fwd)">h1</span><span class="arr">→ layer 2 →</span><span class="box" style="border-color:var(--fwd)">h2</span><span class="arr">→ … →</span><span class="box">logits</span>
+      </div>
+      <p class="note">The activation <b>function</b> (ReLU, GELU) is the bend inside each layer. The <b>activations</b> (h1, h2) are the values it outputs, passed on as the next layer's input. In a transformer each block adds to them instead: h = h + block(h).</p>
+      <div class="acts" id="acts"></div>
+      <p class="note">They sit in the MLP block: W2 @ act(W1 @ x). In the backward pass their slope gates the gradient (ReLU: 1 or 0).</p>
+    </section>
+
+    <section class="panel s-mem">
+      <h2>Memory vs compute</h2>
+      <div class="mem">
+        <div style="display:grid; gap:10px; min-width:0">
+          <p class="lead">Simple ops like ReLU wait on memory, not math.</p>
+          <div class="math">
+            <span>n = 1024 × 1024 bf16 values (2 bytes)</span>
+            <span>bytes = 2n read + 2n write = 4 MB</span>
+            <span>flops = n (one compare with 0 each)</span>
+            <span>time ≈ max(bytes / bandwidth, flops / FLOP/s)</span>
+          </div>
+          <div class="path" aria-label="Unified memory path">
+            <span class="box x">CPU RAM → GPU copy</span><span class="arr">removed by unified memory, but still:</span>
+            <span class="box">DRAM</span><span class="arr">→</span><span class="box">compute units</span><span class="arr">→</span><span class="box">DRAM</span>
+          </div>
+        </div>
+        <div style="min-width:0">
+          <svg id="mem" viewBox="0 0 560 170" role="img" aria-label="ReLU on 1M values: H100 about 1.2 microseconds of memory time, Jetson Nano about 160"></svg>
+        </div>
+      </div>
+    </section>
+  </div>
+  <footer>Language modelling from scratch · notes, Oct 2026 · bandwidth figures approximate</footer>
+</div>
+
+<script>
+(function () {
+  const NS = 'http://www.w3.org/2000/svg';
+  function el(tag, attrs, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function marker(svg, id, color) {
+    let defs = svg.querySelector('defs') || svg.appendChild(el('defs', {}));
+    const m = el('marker', { id, viewBox: '0 0 10 10', refX: '8', refY: '5', markerWidth: '7', markerHeight: '7', orient: 'auto-start-reverse' });
+    m.appendChild(el('path', { d: 'M0 0L10 5L0 10z', fill: color }));
+    defs.appendChild(m);
+  }
+
+  // ---------- Loop ----------
+  (function () {
+    const svg = document.getElementById('loop');
+    const cx = 280, cy = 182, r = 150, W = 156, H = 66;
+    const nodes = [
+      { name: 'Forward', code: 'pred = model(x)', note: 'predict with current weights', c: 'var(--fwd)' },
+      { name: 'Loss', code: 'loss_fn(pred, y)', note: 'one number: how wrong', c: 'var(--ink)' },
+      { name: 'Backward', code: 'loss.backward()', note: 'fills .grad (chain rule)', c: 'var(--bwd)' },
+      { name: 'Step', code: 'optimizer.step()', note: 'w ← w − lr · grad', c: 'var(--upd)' },
+      { name: 'Zero grad', code: 'optimizer.zero_grad()', note: 'throw gradients away', c: 'var(--muted)' }
+    ];
+    const ang = i => (-90 + i * 72) * Math.PI / 180;
+    marker(svg, 'loop-arrow', 'var(--muted)');
+    svg.appendChild(el('circle', { cx, cy, r, fill: 'none', stroke: 'var(--line)', 'stroke-width': 2 }));
+    for (let i = 0; i < 5; i++) {
+      const a0 = ang(i) + 0.5 * 72 * Math.PI / 180 - 0.06, a1 = a0 + 0.12;
+      const p0 = [cx + r * Math.cos(a0), cy + r * Math.sin(a0)], p1 = [cx + r * Math.cos(a1), cy + r * Math.sin(a1)];
+      svg.appendChild(el('path', { d: `M${p0[0]} ${p0[1]} A${r} ${r} 0 0 1 ${p1[0]} ${p1[1]}`, fill: 'none', stroke: 'var(--muted)', 'stroke-width': 2, 'marker-end': 'url(#loop-arrow)' }));
+    }
+    const mid = el('g', {});
+    mid.appendChild(el('text', { x: cx, y: cy + 4, 'text-anchor': 'middle', 'font-size': 15, 'font-weight': 800, fill: 'var(--ink)' }, '1 training step'));
+    mid.appendChild(el('text', { x: cx, y: cy + 24, 'text-anchor': 'middle', 'font-size': 12, fill: 'var(--muted)' }, 'repeat until loss stops improving'));
+    mid.appendChild(el('text', { x: cx, y: cy + 52, 'text-anchor': 'middle', 'font-size': 12, 'font-weight': 700, fill: 'var(--upd)' }, 'kept at the end: the weights'));
+    svg.appendChild(mid);
+    nodes.forEach((n, i) => {
+      const x = cx + r * Math.cos(ang(i)), y = cy + r * Math.sin(ang(i));
+      const g = el('g', {});
+      g.appendChild(el('title', {}, `${n.name}: ${n.note}`));
+      g.appendChild(el('rect', { x: x - W / 2, y: y - H / 2, width: W, height: H, rx: 8, fill: 'var(--card)', stroke: n.c, 'stroke-width': 2 }));
+      g.appendChild(el('rect', { x: x - W / 2, y: y - H / 2, width: 6, height: H, rx: 3, fill: n.c }));
+      g.appendChild(el('text', { x: x - W / 2 + 16, y: y - 12, 'font-size': 14, 'font-weight': 800, fill: 'var(--ink)' }, `${i + 1}. ${n.name}`));
+      g.appendChild(el('text', { x: x - W / 2 + 16, y: y + 6, 'font-size': 10.5, class: 'm', fill: 'var(--ink)' }, n.code));
+      g.appendChild(el('text', { x: x - W / 2 + 16, y: y + 23, 'font-size': 11, fill: 'var(--muted)' }, n.note));
+      svg.appendChild(g);
+    });
+  })();
+
+  // ---------- Gradient descent ----------
+  (function () {
+    const svg = document.getElementById('gd');
+    const L = w => 0.5 * (w - 2) * (w - 2);
+    const X = w => 30 + (w - 0) / 5 * 270, Y = l => 180 - l / 4 * 150;
+    marker(svg, 'gd-up', 'var(--bwd)');
+    marker(svg, 'gd-step', 'var(--upd)');
+    svg.appendChild(el('line', { x1: 30, y1: 180, x2: 304, y2: 180, stroke: 'var(--line)', 'stroke-width': 1 }));
+    svg.appendChild(el('line', { x1: 30, y1: 24, x2: 30, y2: 180, stroke: 'var(--line)', 'stroke-width': 1 }));
+    svg.appendChild(el('text', { x: 304, y: 198, 'text-anchor': 'end', 'font-size': 11, fill: 'var(--muted)' }, 'weight w →'));
+    svg.appendChild(el('text', { x: 24, y: 18, 'font-size': 11, fill: 'var(--muted)' }, 'loss ↑'));
+    let d = '';
+    for (let w = 0; w <= 4.95; w += 0.05) d += (d ? 'L' : 'M') + X(w).toFixed(1) + ' ' + Y(L(w)).toFixed(1);
+    svg.appendChild(el('path', { d, fill: 'none', stroke: 'var(--ink)', 'stroke-width': 2 }));
+    const ws = [4.6]; for (let k = 0; k < 3; k++) { const w = ws[ws.length - 1]; ws.push(w - 0.6 * (w - 2)); }
+    for (let k = 0; k < ws.length - 1; k++) {
+      const a = [X(ws[k]), Y(L(ws[k]))], b = [X(ws[k + 1]), Y(L(ws[k + 1]))];
+      svg.appendChild(el('path', { d: `M${a[0]} ${a[1] - 8} Q${(a[0] + b[0]) / 2} ${Math.min(a[1], b[1]) - 26} ${b[0] + 3} ${b[1] - 9}`, fill: 'none', stroke: 'var(--upd)', 'stroke-width': 2, 'marker-end': 'url(#gd-step)' }));
+    }
+    ws.forEach((w, k) => {
+      const c = el('circle', { cx: X(w), cy: Y(L(w)), r: 5, fill: k === 0 ? 'var(--fwd)' : 'var(--card)', stroke: 'var(--fwd)', 'stroke-width': 2 });
+      c.appendChild(el('title', {}, `step ${k}: w = ${w.toFixed(2)}, loss = ${L(w).toFixed(2)}`));
+      svg.appendChild(c);
+    });
+    // gradient arrow at the first point, along the tangent, uphill
+    const w0 = ws[0], s = (w0 - 2), x0 = X(w0), y0 = Y(L(w0));
+    const dx = 1, dy = s * (-150 / 4) / (270 / 5); const len = Math.hypot(dx, dy), ux = dx / len, uy = dy / len;
+    svg.appendChild(el('line', { x1: x0 + ux * 8, y1: y0 + uy * 8, x2: x0 + ux * 40, y2: y0 + uy * 40, stroke: 'var(--bwd)', 'stroke-width': 2.5, 'marker-end': 'url(#gd-up)' }));
+    svg.appendChild(el('text', { x: x0 + 10, y: y0 - 36, 'font-size': 11.5, 'font-weight': 700, fill: 'var(--bwd)', 'text-anchor': 'end' }, 'grad: uphill'));
+    svg.appendChild(el('text', { x: X(3.2), y: Y(L(3.8)) - 22, 'font-size': 11.5, 'font-weight': 700, fill: 'var(--upd)', 'text-anchor': 'middle' }, 'step: downhill'));
+    svg.appendChild(el('text', { x: X(2), y: 196, 'font-size': 11, fill: 'var(--muted)', 'text-anchor': 'middle' }, 'minimum'));
+    svg.appendChild(el('line', { x1: X(2), y1: 180, x2: X(2), y2: 185, stroke: 'var(--muted)' }));
+  })();
+
+  // ---------- Activations ----------
+  (function () {
+    const host = document.getElementById('acts');
+    const sig = x => 1 / (1 + Math.exp(-x));
+    const gelu = x => 0.5 * x * (1 + Math.tanh(Math.sqrt(2 / Math.PI) * (x + 0.044715 * x ** 3)));
+    const fns = [
+      { nm: 'ReLU', f: x => Math.max(0, x), code: 'max(0, x)', use: 'Original Transformer. Dead below 0.' },
+      { nm: 'GELU', f: gelu, code: 'x · Φ(x)', use: 'GPT-2, BERT. Smooth ReLU.' },
+      { nm: 'SiLU / SwiGLU', f: x => x * sig(x), code: 'x · σ(x)', use: 'LLaMA, most modern LLMs.' },
+      { nm: 'Sigmoid', f: sig, code: '1 / (1 + e⁻ˣ)', use: 'Flat at the ends: vanishing gradients.' }
+    ];
+    const W = 160, H = 80, X = x => 8 + (x + 3) / 6 * (W - 16), Y = y => 8 + (3 - y) / 4 * (H - 16);
+    fns.forEach(fn => {
+      const box = document.createElement('div'); box.className = 'act';
+      const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': fn.nm + ' curve' });
+      svg.appendChild(el('line', { x1: 8, x2: W - 8, y1: Y(0), y2: Y(0), stroke: 'var(--line)' }));
+      svg.appendChild(el('line', { x1: X(0), x2: X(0), y1: 8, y2: H - 8, stroke: 'var(--line)' }));
+      let d = '';
+      for (let x = -3; x <= 3.001; x += 0.05) d += (d ? 'L' : 'M') + X(x).toFixed(1) + ' ' + Y(fn.f(x)).toFixed(1);
+      const p = el('path', { d, fill: 'none', stroke: 'var(--fwd)', 'stroke-width': 2, 'stroke-linecap': 'round' });
+      p.appendChild(el('title', {}, `${fn.nm}: f(-3) = ${fn.f(-3).toFixed(2)}, f(0) = ${fn.f(0).toFixed(2)}, f(3) = ${fn.f(3).toFixed(2)}`));
+      svg.appendChild(p);
+      const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = fn.nm;
+      const c = document.createElement('code'); c.textContent = fn.code; nm.appendChild(c);
+      const use = document.createElement('div'); use.className = 'use'; use.textContent = fn.use;
+      box.append(nm, svg, use); host.appendChild(box);
+    });
+  })();
+
+  // ---------- Memory vs compute ----------
+  (function () {
+    const svg = document.getElementById('mem');
+    const rows = [
+      { dev: 'H100', sub: '~3.35 TB/s HBM3', mem: 1.25, comp: 0.01 },
+      { dev: 'Jetson Nano', sub: '~25.6 GB/s LPDDR4', mem: 160, comp: 2.2 }
+    ];
+    const x0 = 140, x1 = 540, max = 170, X = v => x0 + v / max * (x1 - x0);
+    [0, 50, 100, 150].forEach(t => {
+      svg.appendChild(el('line', { x1: X(t), x2: X(t), y1: 18, y2: 140, stroke: 'var(--grid)' }));
+      svg.appendChild(el('text', { x: X(t), y: 158, 'text-anchor': 'middle', 'font-size': 11, fill: 'var(--muted)' }, t + ' µs'));
+    });
+    svg.appendChild(el('text', { x: x0, y: 10, 'font-size': 11, fill: 'var(--muted)' }, 'ReLU on 1M bf16 values, time in µs'));
+    rows.forEach((r, i) => {
+      const y = 28 + i * 58;
+      svg.appendChild(el('text', { x: 0, y: y + 12, 'font-size': 13, 'font-weight': 700, fill: 'var(--ink)' }, r.dev));
+      svg.appendChild(el('text', { x: 0, y: y + 28, 'font-size': 11, fill: 'var(--muted)' }, r.sub));
+      [['mem', 'memory', 'var(--bar)'], ['comp', 'compute', 'var(--muted)']].forEach(([k, lab, col], j) => {
+        const yy = y + j * 20, wv = Math.max(2, X(r[k]) - x0);
+        const rect = el('rect', { x: x0, y: yy, width: wv, height: 14, rx: 3, fill: col, 'fill-opacity': j ? 0.45 : 1 });
+        rect.appendChild(el('title', {}, `${r.dev} ${lab}: ~${r[k] < 0.1 ? '≈0' : r[k]} µs`));
+        svg.appendChild(rect);
+        const v = r[k] < 0.1 ? 'negligible' : `~${r[k] >= 10 ? Math.round(r[k]) : r[k].toFixed(1)} µs`;
+        const inside = wv > 300;
+        svg.appendChild(el('text', { x: inside ? x0 + wv - 8 : x0 + wv + 6, y: yy + 11, 'text-anchor': inside ? 'end' : 'start', 'font-size': 11.5, 'font-weight': inside ? 700 : 400, fill: inside ? 'var(--card)' : 'var(--ink)' }, `${lab} ${v}`));
+      });
+    });
+  })();
+})();
+</script>
