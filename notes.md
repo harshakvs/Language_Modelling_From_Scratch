@@ -568,3 +568,13 @@ When do we choose?
 
 Tons of architectures.
 
+Position embeddings?
+Attention variants?
+Activations, FFN?
+
+Hyperparameters that do or dont matter
+Stability tricks
+
+
+One thing everyone agress upon is adding the layer norm outside the residual stream
+Almost all moden LMs use pre norm but BERT was post norm.
